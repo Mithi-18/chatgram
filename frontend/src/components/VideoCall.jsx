@@ -8,25 +8,49 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
   const connectionRef = useRef(null);
 
   useEffect(() => {
-    // Get local media stream (video and audio)
-    navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true }).then((currentStream) => {
-      setStream(currentStream);
-      if (myVideo.current && callType === 'video') {
-        myVideo.current.srcObject = currentStream;
-      }
+    const getFallbackStream = (isVideo) => {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const dest = audioCtx.createMediaStreamDestination();
+      const audioTrack = dest.stream.getAudioTracks()[0];
+      
+      if (!isVideo) return new MediaStream([audioTrack]);
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      let x = 0;
+      setInterval(() => {
+        ctx.fillStyle = '#1e2130'; ctx.fillRect(0, 0, 640, 480);
+        ctx.fillStyle = '#9ca3af'; ctx.font = '24px Inter, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('Camera Disabled / Not Found', 320, 240);
+        ctx.fillStyle = '#6366f1'; ctx.beginPath(); ctx.arc(x % 640, 280, 5, 0, Math.PI*2); ctx.fill();
+        x += 5;
+      }, 100);
+      
+      const videoStream = canvas.captureStream(15);
+      return new MediaStream([audioTrack, videoStream.getVideoTracks()[0]]);
+    };
 
-      // If we are initiating the call, start WebRTC right away
-      if (!isReceiving) {
-        initiateCall(currentStream);
-      } else {
-        // If receiving, answer the call
-        answerCall(currentStream);
-      }
-    }).catch(err => {
-      console.error("Failed to get local stream", err);
-      alert(`Could not access microphone${callType === 'video' ? '/camera' : ''}. Please ensure permissions are granted.`);
-      onClose();
-    });
+    const startConnection = (mediaStream) => {
+      setStream(mediaStream);
+      if (myVideo.current && callType === 'video') myVideo.current.srcObject = mediaStream;
+      if (!isReceiving) initiateCall(mediaStream);
+      else answerCall(mediaStream);
+    };
+
+    navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true })
+      .then(startConnection)
+      .catch(err => {
+        console.warn("Failed to get local stream, switching to fallback:", err);
+        try {
+          const fallback = getFallbackStream(callType === 'video');
+          startConnection(fallback);
+          alert(`Could not access your physical ${callType === 'video' ? 'Camera/Microphone' : 'Microphone'}. The call connected, but the other person won't be able to hear/see you until you allow permissions!`);
+        } catch (fallbackErr) {
+          console.error("Fallback failed", fallbackErr);
+          onClose();
+        }
+      });
 
     socket.on('call_ended', () => {
       endCall(false);
