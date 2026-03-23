@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer';
 
-function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSignal, callerId, onClose }) {
+function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSignal, callerId, callType, onClose }) {
   const [stream, setStream] = useState(null);
   const myVideo = useRef(null);
   const userVideo = useRef(null);
@@ -9,9 +9,9 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
 
   useEffect(() => {
     // Get local media stream (video and audio)
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((currentStream) => {
+    navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true }).then((currentStream) => {
       setStream(currentStream);
-      if (myVideo.current) {
+      if (myVideo.current && callType === 'video') {
         myVideo.current.srcObject = currentStream;
       }
 
@@ -24,7 +24,7 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
       }
     }).catch(err => {
       console.error("Failed to get local stream", err);
-      alert("Could not access camera/microphone. Please ensure permissions are granted.");
+      alert(`Could not access microphone${callType === 'video' ? '/camera' : ''}. Please ensure permissions are granted.`);
       onClose();
     });
 
@@ -52,6 +52,7 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
         signalData: data,
         from: currentUser.id,
         name: currentUser.name,
+        callType
       });
     });
 
@@ -105,18 +106,28 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
   return (
     <div className="call-overlay">
       <h2 style={{ marginBottom: '20px', zIndex: 1, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-        {isReceiving ? `In call with ${selectedUser ? selectedUser.name : 'Unknown'}` : `Calling ${selectedUser?.name}...`}
+        {isReceiving ? `In ${callType} call with ${selectedUser ? selectedUser.name : 'Unknown'}` : `Calling ${selectedUser?.name}...`}
       </h2>
       
-      <div className="videos-container">
-        <div className="video-frame">
-          <video playsInline muted ref={myVideo} autoPlay />
-          <div className="video-label">{currentUser.name} (You)</div>
-        </div>
+      <div className={`videos-container ${callType === 'voice' ? 'voice-mode' : ''}`}>
+        {callType === 'video' && (
+          <div className="video-frame">
+            <video playsInline muted ref={myVideo} autoPlay />
+            <div className="video-label">{currentUser.name} (You)</div>
+          </div>
+        )}
         
-        <div className="video-frame">
-          <video playsInline ref={userVideo} autoPlay />
-          <div className="video-label">{selectedUser?.name || 'Connecting...'}</div>
+        <div className={callType === 'video' ? 'video-frame' : 'voice-frame'}>
+          {callType === 'video' ? (
+             <video playsInline ref={userVideo} autoPlay />
+          ) : (
+             <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%'}}>
+               <div style={{fontSize: '60px', marginBottom: '20px', animation: 'pulsate 1.5s infinite alternate'}}>📞</div>
+               <h3 style={{fontSize: '24px'}}>{selectedUser?.name || 'Connecting...'}</h3>
+               <audio playsInline ref={userVideo} autoPlay />
+             </div>
+          )}
+          {callType === 'video' && <div className="video-label">{selectedUser?.name || 'Connecting...'}</div>}
         </div>
       </div>
 

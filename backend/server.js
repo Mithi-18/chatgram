@@ -95,12 +95,13 @@ io.on('connection', (socket) => {
 
     // WebRTC Signaling
     socket.on('call_user', (data) => {
-        // data should have: userToCall, signalData, from, name
+        // data should have: userToCall, signalData, from, name, callType
         console.log(`Calling user ${data.userToCall} from ${data.from}`);
         io.to(data.userToCall.toString()).emit('incoming_call', {
             signal: data.signalData,
             from: data.from,
-            name: data.name
+            name: data.name,
+            callType: data.callType
         });
     });
 

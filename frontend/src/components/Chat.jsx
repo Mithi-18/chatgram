@@ -33,6 +33,7 @@ function Chat({ currentUser, onLogout }) {
   const [callerName, setCallerName] = useState('');
   const [callerSignal, setCallerSignal] = useState(null);
   const [callActive, setCallActive] = useState(false);
+  const [callType, setCallType] = useState(null);
 
   useEffect(() => {
     // Connect to Socket.io
@@ -78,6 +79,7 @@ function Chat({ currentUser, onLogout }) {
       setCaller(data.from);
       setCallerName(data.name);
       setCallerSignal(data.signal);
+      setCallType(data.callType || 'video');
     });
 
     return () => {
@@ -206,8 +208,9 @@ function Chat({ currentUser, onLogout }) {
     );
   };
 
-  const startCall = () => {
+  const startCall = (type) => {
     if (!selectedUser) return;
+    setCallType(type);
     setCallActive(true);
   };
 
@@ -276,7 +279,8 @@ function Chat({ currentUser, onLogout }) {
                 <h3>{selectedUser.name}</h3>
               </div>
               <div className="call-actions">
-                <button onClick={startCall}>📞 Voice / 📹 Video Call</button>
+                <button onClick={() => startCall('voice')} title="Voice Call">📞</button>
+                <button onClick={() => startCall('video')} title="Video Call">📹</button>
               </div>
             </div>
 
@@ -339,7 +343,7 @@ function Chat({ currentUser, onLogout }) {
             <div className="avatar" style={{width: '50px', height: '50px'}}>{getInitials(callerName)}</div>
             <div>
               <h3 style={{marginBottom: '5px'}}>{callerName}</h3>
-              <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Incoming Video Call...</p>
+              <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Incoming {callType === 'voice' ? 'Voice' : 'Video'} Call...</p>
             </div>
             <div style={{display: 'flex', gap: '10px', marginLeft: '20px'}}>
               <button className="answer-call-btn" onClick={handleAcceptCall} style={{padding: '10px 20px'}}>Answer</button>
@@ -357,10 +361,12 @@ function Chat({ currentUser, onLogout }) {
             isReceiving={receivingCall}
             callerSignal={callerSignal}
             callerId={caller}
+            callType={callType}
             onClose={() => {
               setCallActive(false);
               setReceivingCall(false);
               setCallerSignal(null);
+              setCallType(null);
             }} 
           />
         )}
