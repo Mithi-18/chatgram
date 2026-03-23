@@ -12,6 +12,17 @@ function Chat({ currentUser, onLogout }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const [typingUsers, setTypingUsers] = useState(new Set());
+  const typingTimeoutRef = useRef(null);
+
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio blocked:', e));
+    } catch (e) {}
+  };
+
   // WebRTC Call State
   const [receivingCall, setReceivingCall] = useState(false);
   const [caller, setCaller] = useState('');
@@ -33,6 +44,24 @@ function Chat({ currentUser, onLogout }) {
     // Listen for incoming messages
     socket.on('receive_message', (message) => {
       setMessages((prev) => [...prev, message]);
+      playNotificationSound();
+      setTypingUsers(prev => {
+        const next = new Set(prev);
+        next.delete(message.sender_id);
+        return next;
+      });
+    });
+
+    socket.on('user_typing', (data) => {
+      setTypingUsers(prev => new Set(prev).add(data.sender_id));
+    });
+
+    socket.on('user_stop_typing', (data) => {
+      setTypingUsers(prev => {
+        const next = new Set(prev);
+        next.delete(data.sender_id);
+        return next;
+      });
     });
 
     // Listen for incoming calls
@@ -45,6 +74,9 @@ function Chat({ currentUser, onLogout }) {
 
     return () => {
       socket.off('receive_message');
+      socket.off('user_typing');
+      socket.off('user_stop_typing');
+      socket.off('incoming_call');
       socket.off('incoming_call');
       socket.disconnect();
     };
@@ -78,7 +110,21 @@ function Chat({ currentUser, onLogout }) {
     };
 
     socket.emit('send_message', messageData);
+    socket.emit('stop_typing', { sender_id: currentUser.id, receiver_id: selectedUser.id });
     setInputText('');
+    playNotificationSound();
+  };
+
+  const handleTyping = (e) => {
+    setInputText(e.target.value);
+    if (!selectedUser) return;
+    
+    socket.emit('typing', { sender_id: currentUser.id, receiver_id: selectedUser.id });
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stop_typing', { sender_id: currentUser.id, receiver_id: selectedUser.id });
+    }, 1500);
   };
 
   const handleFileUpload = async (e) => {
@@ -206,6 +252,13 @@ function Chat({ currentUser, onLogout }) {
                   </div>
                 </div>
               ))}
+              {typingUsers.has(selectedUser.id) && (
+                <div className="typing-indicator-bubble">
+                  <div className="dot"></div>
+                  <div className="dot"></div>
+                  <div className="dot"></div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -218,7 +271,7 @@ function Chat({ currentUser, onLogout }) {
                 type="text" 
                 placeholder="Type a message..." 
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={handleTyping}
               />
               <button type="submit" className="send-btn">Send</button>
             </form>

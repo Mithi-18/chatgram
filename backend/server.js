@@ -69,6 +69,15 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Typing indicators
+    socket.on('typing', (data) => {
+        io.to(data.receiver_id.toString()).emit('user_typing', { sender_id: data.sender_id });
+    });
+
+    socket.on('stop_typing', (data) => {
+        io.to(data.receiver_id.toString()).emit('user_stop_typing', { sender_id: data.sender_id });
+    });
+
     // WebRTC Signaling
     socket.on('call_user', (data) => {
         // data should have: userToCall, signalData, from, name
