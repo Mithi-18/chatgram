@@ -1,0 +1,268 @@
+import { useState, useEffect, useRef } from 'react';
+import { socket } from '../utils/socket';
+import VideoCall from './VideoCall';
+
+const API_URL = 'http://localhost:5000/api';
+
+function Chat({ currentUser, onLogout }) {
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // WebRTC Call State
+  const [receivingCall, setReceivingCall] = useState(false);
+  const [caller, setCaller] = useState('');
+  const [callerName, setCallerName] = useState('');
+  const [callerSignal, setCallerSignal] = useState(null);
+  const [callActive, setCallActive] = useState(false);
+
+  useEffect(() => {
+    // Connect to Socket.io
+    socket.connect();
+    socket.emit('join', currentUser.id.toString());
+
+    // Fetch user list
+    fetch(`${API_URL}/auth/users`)
+      .then(res => res.json())
+      .then(data => setUsers(data.filter(u => u.id !== currentUser.id)))
+      .catch(err => console.error("Error fetching users", err));
+
+    // Listen for incoming messages
+    socket.on('receive_message', (message) => {
+      setMessages((prev) => [...prev, message]);
+    });
+
+    // Listen for incoming calls
+    socket.on('incoming_call', (data) => {
+      setReceivingCall(true);
+      setCaller(data.from);
+      setCallerName(data.name);
+      setCallerSignal(data.signal);
+    });
+
+    return () => {
+      socket.off('receive_message');
+      socket.off('incoming_call');
+      socket.disconnect();
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    // When a user is selected, fetch chat history
+    if (selectedUser) {
+      fetch(`${API_URL}/auth/messages/${currentUser.id}/${selectedUser.id}`)
+        .then(res => res.json())
+        .then(data => setMessages(data))
+        .catch(err => console.error("Error fetching messages", err));
+    }
+  }, [selectedUser, currentUser]);
+
+  const sendMessage = async (e) => {
+    e?.preventDefault();
+    if (!inputText.trim() || !selectedUser) return;
+
+    const messageData = {
+      sender_id: currentUser.id,
+      receiver_id: selectedUser.id,
+      type: 'text',
+      content: inputText,
+      file_url: null
+    };
+
+    socket.emit('send_message', messageData);
+    setInputText('');
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedUser) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_URL}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      let type = 'file';
+      if (file.type.startsWith('image/')) type = 'image';
+      else if (file.type.startsWith('video/')) type = 'video';
+
+      const messageData = {
+        sender_id: currentUser.id,
+        receiver_id: selectedUser.id,
+        type: type,
+        content: file.name,
+        file_url: data.fileUrl
+      };
+
+      socket.emit('send_message', messageData);
+    } catch (err) {
+      console.error('Error uploading file', err);
+    }
+  };
+
+  const startCall = () => {
+    if (!selectedUser) return;
+    setCallActive(true);
+  };
+
+  const handleAcceptCall = () => {
+    setReceivingCall(false);
+    setCallActive(true);
+    // Setting selectedUser to the caller so the VideoCall component knows who we are talking to
+    const callingUser = users.find(u => u.id.toString() === caller);
+    if (callingUser) setSelectedUser(callingUser);
+  };
+
+  const handleDeclineCall = () => {
+    setReceivingCall(false);
+  };
+
+  const getInitials = (name) => name ? name.charAt(0).toUpperCase() : '?';
+
+  return (
+    <div className="app-container">
+      {/* Sidebar */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <div className="user-profile">
+            <div className="avatar">{getInitials(currentUser.name)}</div>
+            <div>
+              <div style={{fontWeight: 600, fontSize: '15px'}}>{currentUser.name}</div>
+              <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Online</div>
+            </div>
+          </div>
+          <button className="logout-btn" onClick={onLogout}>Logout</button>
+        </div>
+        
+        <div className="user-list">
+          <h4 style={{padding: '10px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Contacts</h4>
+          {users.map(user => (
+            <div 
+              key={user.id} 
+              className={`user-item ${selectedUser?.id === user.id ? 'active' : ''}`}
+              onClick={() => setSelectedUser(user)}
+            >
+              <div className="avatar" style={{width: '35px', height: '35px', fontSize: '14px'}}>
+                {getInitials(user.name)}
+              </div>
+              <div className="user-info">
+                <h3>{user.name}</h3>
+              </div>
+            </div>
+          ))}
+          {users.length === 0 && <div style={{padding: '10px', color: 'var(--text-muted)'}}>No other users found. Register another account to chat!</div>}
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="chat-area">
+        {selectedUser ? (
+          <>
+            <div className="chat-header">
+              <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <div className="avatar" style={{width: '35px', height: '35px', fontSize: '14px'}}>
+                  {getInitials(selectedUser.name)}
+                </div>
+                <h3>{selectedUser.name}</h3>
+              </div>
+              <div className="call-actions">
+                <button onClick={startCall}>📞 Voice / 📹 Video Call</button>
+              </div>
+            </div>
+
+            <div className="messages-list">
+              {messages.filter(m => 
+                (m.sender_id === currentUser.id && m.receiver_id === selectedUser.id) ||
+                (m.sender_id === selectedUser.id && m.receiver_id === currentUser.id)
+              ).map((msg, index) => (
+                <div key={index} className={`message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}`}>
+                  {msg.type === 'text' && <p>{msg.content}</p>}
+                  {msg.type === 'image' && (
+                    <img src={`http://localhost:5000${msg.file_url}`} alt="attachment" className="message-media" />
+                  )}
+                  {msg.type === 'video' && (
+                    <video controls src={`http://localhost:5000${msg.file_url}`} className="message-media" />
+                  )}
+                  {msg.type === 'file' && (
+                    <a href={`http://localhost:5000${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
+                      Download: {msg.content}
+                    </a>
+                  )}
+                  <div style={{fontSize: '10px', opacity: 0.7, marginTop: '4px', textAlign: 'right'}}>
+                    {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <form onSubmit={sendMessage} className="chat-input-area">
+              <input type="file" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileUpload} accept="image/*,video/*" />
+              <button type="button" className="file-btn" onClick={() => fileInputRef.current.click()} title="Attach File">
+                📎
+              </button>
+              <input 
+                type="text" 
+                placeholder="Type a message..." 
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+              />
+              <button type="submit" className="send-btn">Send</button>
+            </form>
+          </>
+        ) : (
+          <div style={{display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}>
+            <h3>Select a contact to start messaging</h3>
+          </div>
+        )}
+
+        {/* Incoming Call Dialog */}
+        {receivingCall && !callActive && (
+          <div className="incoming-call-dialog">
+            <div className="avatar" style={{width: '50px', height: '50px'}}>{getInitials(callerName)}</div>
+            <div>
+              <h3 style={{marginBottom: '5px'}}>{callerName}</h3>
+              <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Incoming Video Call...</p>
+            </div>
+            <div style={{display: 'flex', gap: '10px', marginLeft: '20px'}}>
+              <button className="answer-call-btn" onClick={handleAcceptCall} style={{padding: '10px 20px'}}>Answer</button>
+              <button className="end-call-btn" onClick={handleDeclineCall} style={{padding: '10px 20px'}}>Decline</button>
+            </div>
+          </div>
+        )}
+
+        {/* Video Call Overlay */}
+        {callActive && (
+          <VideoCall 
+            currentUser={currentUser} 
+            selectedUser={selectedUser} 
+            socket={socket} 
+            isReceiving={receivingCall}
+            callerSignal={callerSignal}
+            callerId={caller}
+            onClose={() => {
+              setCallActive(false);
+              setReceivingCall(false);
+              setCallerSignal(null);
+            }} 
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default Chat;

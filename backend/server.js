@@ -1,0 +1,104 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const { setupDatabase, getDb } = require('./database');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+
+const authRoutes = require('./routes/auth');
+const uploadRoutes = require('./routes/upload');
+
+const app = express();
+const server = createServer(app);
+
+// Allow frontend, which might be running on a different port locally
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+
+app.use(cors());
+app.use(express.json());
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Prefixing routes
+app.use('/api/auth', authRoutes);
+app.use('/api/upload', uploadRoutes);
+
+// Socket.IO for real-time messaging and WebRTC signaling
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
+
+    // Join a personal room to receive private messages and calls
+    socket.on('join', (userId) => {
+        socket.join(userId);
+        console.log(`User ${userId} joined room ${userId}`);
+    });
+
+    // Handle new text/image/video messages
+    socket.on('send_message', async (data) => {
+        try {
+            const db = await getDb();
+            const { sender_id, receiver_id, content, type, file_url } = data;
+            
+            const result = await db.run(
+                `INSERT INTO messages (sender_id, receiver_id, type, content, file_url) VALUES (?, ?, ?, ?, ?)`,
+                [sender_id, receiver_id, type || 'text', content || '', file_url || null]
+            );
+
+            const insertedMessage = {
+                id: result.lastID,
+                sender_id,
+                receiver_id,
+                type,
+                content,
+                file_url,
+                created_at: new Date().toISOString()
+            };
+
+            // Emit to both sender and receiver
+            io.to(sender_id.toString()).emit('receive_message', insertedMessage);
+            io.to(receiver_id.toString()).emit('receive_message', insertedMessage);
+            
+        } catch (error) {
+            console.error('Error saving message:', error);
+        }
+    });
+
+    // WebRTC Signaling
+    socket.on('call_user', (data) => {
+        // data should have: userToCall, signalData, from, name
+        console.log(`Calling user ${data.userToCall} from ${data.from}`);
+        io.to(data.userToCall.toString()).emit('incoming_call', {
+            signal: data.signalData,
+            from: data.from,
+            name: data.name
+        });
+    });
+
+    socket.on('answer_call', (data) => {
+        io.to(data.to.toString()).emit('call_accepted', data.signal);
+    });
+
+    socket.on('disconnect_call', (data) => {
+        io.to(data.to.toString()).emit('call_ended');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+const PORT = 5000;
+
+setupDatabase().then(() => {
+    server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}).catch(err => {
+    console.error("Failed to start database:", err);
+});
