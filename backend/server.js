@@ -31,6 +31,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 
+const activeUsers = {};
+
 // Socket.IO for real-time messaging and WebRTC signaling
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -38,7 +40,10 @@ io.on('connection', (socket) => {
     // Join a personal room to receive private messages and calls
     socket.on('join', (userId) => {
         socket.join(userId);
+        socket.userId = userId;
+        activeUsers[userId] = (activeUsers[userId] || 0) + 1;
         console.log(`User ${userId} joined room ${userId}`);
+        io.emit('online_users', Object.keys(activeUsers));
     });
 
     // Handle new text/image/video messages
@@ -101,6 +106,13 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+        if (socket.userId && activeUsers[socket.userId]) {
+            activeUsers[socket.userId]--;
+            if (activeUsers[socket.userId] <= 0) {
+                delete activeUsers[socket.userId];
+            }
+            io.emit('online_users', Object.keys(activeUsers));
+        }
     });
 });
 

@@ -14,6 +14,7 @@ function Chat({ currentUser, onLogout }) {
   const profilePicInputRef = useRef(null);
 
   const [myUser, setMyUser] = useState(currentUser);
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   const [typingUsers, setTypingUsers] = useState(new Set());
   const typingTimeoutRef = useRef(null);
@@ -43,6 +44,10 @@ function Chat({ currentUser, onLogout }) {
       .then(res => res.json())
       .then(data => setUsers(data.filter(u => u.id !== currentUser.id)))
       .catch(err => console.error("Error fetching users", err));
+
+    socket.on('online_users', (usersArray) => {
+      setOnlineUsers(usersArray);
+    });
 
     // Listen for incoming messages
     socket.on('receive_message', (message) => {
@@ -76,6 +81,7 @@ function Chat({ currentUser, onLogout }) {
     });
 
     return () => {
+      socket.off('online_users');
       socket.off('receive_message');
       socket.off('user_typing');
       socket.off('user_stop_typing');
@@ -220,7 +226,7 @@ function Chat({ currentUser, onLogout }) {
   const getInitials = (name) => name ? name.charAt(0).toUpperCase() : '?';
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${selectedUser ? 'mobile-chat-open' : ''}`}>
       {/* Sidebar */}
       <div className="sidebar">
         <div className="sidebar-header">
@@ -244,8 +250,14 @@ function Chat({ currentUser, onLogout }) {
               onClick={() => setSelectedUser(user)}
             >
               <Avatar user={user} style={{width: '35px', height: '35px', fontSize: '14px'}} />
-              <div className="user-info">
-                <h3>{user.name}</h3>
+              <div className="user-info" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3>{user.name}</h3>
+                  <div style={{
+                    width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0,
+                    backgroundColor: onlineUsers.includes(user.id.toString()) ? 'var(--success)' : 'var(--text-muted)'
+                  }} title={onlineUsers.includes(user.id.toString()) ? "Online" : "Offline"}></div>
+                </div>
               </div>
             </div>
           ))}
@@ -259,6 +271,7 @@ function Chat({ currentUser, onLogout }) {
           <>
             <div className="chat-header">
               <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <button className="mobile-back-btn" onClick={() => setSelectedUser(null)}>←</button>
                 <Avatar user={selectedUser} style={{width: '35px', height: '35px', fontSize: '14px'}} />
                 <h3>{selectedUser.name}</h3>
               </div>

@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
 
-        const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '24h' });
+        const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '30d' });
 
         res.json({
             token,

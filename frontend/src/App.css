@@ -480,3 +480,38 @@ body {
   0%, 100% { transform: translateY(0); opacity: 0.5; }
   50% { transform: translateY(-4px); opacity: 1; }
 }
+
+/* Responsive Mobile Chat */
+.mobile-back-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  font-size: 24px;
+  cursor: pointer;
+  margin-right: 5px;
+  padding: 0 10px;
+}
+
+@media (max-width: 768px) {
+  .app-container.mobile-chat-open .sidebar {
+    display: none;
+  }
+  .app-container:not(.mobile-chat-open) .chat-area {
+    display: none;
+  }
+  .mobile-back-btn {
+    display: block;
+  }
+  .sidebar { 
+    width: 100%; 
+    border-right: none; 
+  }
+  .message {
+    max-width: 85%;
+  }
+  .videos-container {
+    flex-direction: column;
+    height: 80vh;
+  }
+}
