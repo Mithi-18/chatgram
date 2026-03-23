@@ -11,6 +11,9 @@ function Chat({ currentUser, onLogout }) {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const profilePicInputRef = useRef(null);
+
+  const [myUser, setMyUser] = useState(currentUser);
 
   const [typingUsers, setTypingUsers] = useState(new Set());
   const typingTimeoutRef = useRef(null);
@@ -159,6 +162,44 @@ function Chat({ currentUser, onLogout }) {
     }
   };
 
+  const handleProfilePicUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const uploadRes = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
+      const { fileUrl } = await uploadRes.json();
+      
+      const updateRes = await fetch(`${API_URL}/auth/user/${myUser.id}/profile-pic`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_pic: fileUrl })
+      });
+      const data = await updateRes.json();
+      if (data.success) {
+        const updatedUser = { ...myUser, profile_pic: data.profile_pic };
+        setMyUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+    } catch (err) { console.error('Error updating profile pic', err); }
+  };
+
+  const Avatar = ({ user, onClick, style = {}, title }) => {
+    if (user?.profile_pic) {
+      return (
+        <img src={`https://chatgram-production.up.railway.app${user.profile_pic}`} alt="avatar" 
+             className="avatar" style={{ objectFit: 'cover', cursor: onClick ? 'pointer' : 'default', ...style }} 
+             onClick={onClick} title={title} />
+      );
+    }
+    return (
+      <div className="avatar" style={{ cursor: onClick ? 'pointer' : 'default', ...style }} onClick={onClick} title={title}>
+        {getInitials(user?.name)}
+      </div>
+    );
+  };
+
   const startCall = () => {
     if (!selectedUser) return;
     setCallActive(true);
@@ -184,9 +225,10 @@ function Chat({ currentUser, onLogout }) {
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="user-profile">
-            <div className="avatar">{getInitials(currentUser.name)}</div>
+            <input type="file" ref={profilePicInputRef} style={{display: 'none'}} onChange={handleProfilePicUpdate} accept="image/*" />
+            <Avatar user={myUser} onClick={() => profilePicInputRef.current.click()} title="Click to update profile picture" />
             <div>
-              <div style={{fontWeight: 600, fontSize: '15px'}}>{currentUser.name}</div>
+              <div style={{fontWeight: 600, fontSize: '15px'}}>{myUser.name}</div>
               <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Online</div>
             </div>
           </div>
@@ -201,9 +243,7 @@ function Chat({ currentUser, onLogout }) {
               className={`user-item ${selectedUser?.id === user.id ? 'active' : ''}`}
               onClick={() => setSelectedUser(user)}
             >
-              <div className="avatar" style={{width: '35px', height: '35px', fontSize: '14px'}}>
-                {getInitials(user.name)}
-              </div>
+              <Avatar user={user} style={{width: '35px', height: '35px', fontSize: '14px'}} />
               <div className="user-info">
                 <h3>{user.name}</h3>
               </div>
@@ -219,9 +259,7 @@ function Chat({ currentUser, onLogout }) {
           <>
             <div className="chat-header">
               <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <div className="avatar" style={{width: '35px', height: '35px', fontSize: '14px'}}>
-                  {getInitials(selectedUser.name)}
-                </div>
+                <Avatar user={selectedUser} style={{width: '35px', height: '35px', fontSize: '14px'}} />
                 <h3>{selectedUser.name}</h3>
               </div>
               <div className="call-actions">

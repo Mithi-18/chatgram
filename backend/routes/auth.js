@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
 
         res.json({
             token,
-            user: { id: user.id, name: user.name, email: user.email }
+            user: { id: user.id, name: user.name, email: user.email, profile_pic: user.profile_pic }
         });
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
@@ -61,7 +61,7 @@ router.post('/login', async (req, res) => {
 router.get('/users', async (req, res) => {
     try {
         const db = await getDb();
-        const users = await db.all(`SELECT id, name, email FROM users`);
+        const users = await db.all(`SELECT id, name, email, profile_pic FROM users`);
         res.json(users);
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
@@ -82,6 +82,18 @@ router.get('/messages/:userId1/:userId2', async (req, res) => {
         `, [userId1, userId2, userId2, userId1]);
 
         res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update Profile Picture
+router.put('/user/:id/profile-pic', async (req, res) => {
+    try {
+        const db = await getDb();
+        const { profile_pic } = req.body;
+        await db.run('UPDATE users SET profile_pic = ? WHERE id = ?', [profile_pic, req.params.id]);
+        res.json({ success: true, profile_pic });
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
     }

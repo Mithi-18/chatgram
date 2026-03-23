@@ -17,7 +17,8 @@ async function setupDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            profile_pic TEXT
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -33,6 +34,12 @@ async function setupDatabase() {
             FOREIGN KEY(receiver_id) REFERENCES users(id)
         );
     `);
+
+    try {
+        await db.exec(`ALTER TABLE users ADD COLUMN profile_pic TEXT;`);
+    } catch(e) {
+        // Ignored if column already exists
+    }
 
     return db;
 }
