@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API_URL = 'https://chatgram-production.up.railway.app/api/auth';
+const API_URL = '/api/auth';
 
 function Login({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);

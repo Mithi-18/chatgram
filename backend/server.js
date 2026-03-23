@@ -31,6 +31,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 
+// Serve React Frontend
+const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendPath));
+app.get('*', (req, res, next) => {
+    if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) return next();
+    res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 const activeUsers = {};
 
 // Socket.IO for real-time messaging and WebRTC signaling
