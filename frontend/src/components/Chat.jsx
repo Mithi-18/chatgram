@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { socket } from '../utils/socket';
 import VideoCall from './VideoCall';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://chatgram-production.up.railway.app/api';
 
 function Chat({ currentUser, onLogout }) {
   const [users, setUsers] = useState([]);
@@ -191,13 +191,13 @@ function Chat({ currentUser, onLogout }) {
                 <div key={index} className={`message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}`}>
                   {msg.type === 'text' && <p>{msg.content}</p>}
                   {msg.type === 'image' && (
-                    <img src={`http://localhost:5000${msg.file_url}`} alt="attachment" className="message-media" />
+                    <img src={`https://chatgram-production.up.railway.app${msg.file_url}`} alt="attachment" className="message-media" />
                   )}
                   {msg.type === 'video' && (
-                    <video controls src={`http://localhost:5000${msg.file_url}`} className="message-media" />
+                    <video controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" />
                   )}
                   {msg.type === 'file' && (
-                    <a href={`http://localhost:5000${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
+                    <a href={`https://chatgram-production.up.railway.app${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
                       Download: {msg.content}
                     </a>
                   )}
