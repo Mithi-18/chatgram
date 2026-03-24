@@ -242,18 +242,44 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-width: 0;
+}
+
+.chat-header-userinfo {
+  display: flex; 
+  align-items: center; 
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+  margin-right: 10px;
+}
+
+.chat-header-userinfo h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-size: 16px;
+}
+
+.call-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .call-actions button {
   background: var(--surface-light);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  margin-left: 10px;
   font-weight: 500;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .call-actions button:hover {
@@ -446,6 +472,12 @@ body {
   z-index: 101;
 }
 
+.incoming-actions {
+  margin-left: 20px;
+  display: flex;
+  gap: 10px;
+}
+
 @keyframes slideDown {
   from { opacity: 0; transform: translate(-50%, -20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
@@ -517,6 +549,9 @@ body {
 }
 
 @media (max-width: 768px) {
+  .chat-header {
+    padding: 12px 15px;
+  }
   .app-container.mobile-chat-open .sidebar {
     display: none;
   }
@@ -536,6 +571,18 @@ body {
   .videos-container {
     flex-direction: column;
     height: 80vh;
+  }
+  .incoming-call-dialog {
+    width: 90%;
+    padding: 15px;
+    flex-direction: column;
+    text-align: center;
+  }
+  .incoming-actions {
+    margin-left: 0;
+    margin-top: 10px;
+    width: 100%;
+    justify-content: center;
   }
 }
 

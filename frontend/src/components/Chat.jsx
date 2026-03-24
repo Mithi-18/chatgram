@@ -306,9 +306,9 @@ function Chat({ currentUser, onLogout }) {
         {selectedUser ? (
           <>
             <div className="chat-header">
-              <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+              <div className="chat-header-userinfo">
                 <button className="mobile-back-btn" onClick={() => setSelectedUser(null)}>←</button>
-                <Avatar user={selectedUser} style={{width: '35px', height: '35px', fontSize: '14px'}} />
+                <Avatar user={selectedUser} style={{width: '35px', height: '35px', fontSize: '14px', flexShrink: 0}} />
                 <h3>{selectedUser.name}</h3>
               </div>
               <div className="call-actions">
@@ -397,7 +397,7 @@ function Chat({ currentUser, onLogout }) {
               <h3 style={{marginBottom: '5px'}}>{callerName}</h3>
               <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Incoming {callType === 'voice' ? 'Voice' : 'Video'} Call...</p>
             </div>
-            <div style={{display: 'flex', gap: '10px', marginLeft: '20px'}}>
+            <div className="incoming-actions">
               <button className="answer-call-btn" onClick={handleAcceptCall} style={{padding: '10px 20px'}}>Answer</button>
               <button className="end-call-btn" onClick={handleDeclineCall} style={{padding: '10px 20px'}}>Decline</button>
             </div>
