@@ -109,6 +109,10 @@ io.on('connection', (socket) => {
         io.to(data.to.toString()).emit('call_accepted', data.signal);
     });
 
+    socket.on('webrtc_ice_candidate', (data) => {
+        io.to(data.to.toString()).emit('webrtc_ice_candidate', data);
+    });
+
     socket.on('disconnect_call', (data) => {
         io.to(data.to.toString()).emit('call_ended');
     });

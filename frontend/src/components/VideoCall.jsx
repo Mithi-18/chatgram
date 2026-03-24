@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import Peer from 'simple-peer';
 
 function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSignal, callerId, callType, onClose }) {
   const [stream, setStream] = useState(null);
   const myVideo = useRef(null);
   const userVideo = useRef(null);
-  const connectionRef = useRef(null);
+  const peerConnectionRef = useRef(null);
 
   useEffect(() => {
     const getFallbackStream = (isVideo) => {
@@ -31,11 +30,70 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
       return new MediaStream([audioTrack, videoStream.getVideoTracks()[0]]);
     };
 
-    const startConnection = (mediaStream) => {
+    const startConnection = async (mediaStream) => {
       setStream(mediaStream);
       if (myVideo.current && callType === 'video') myVideo.current.srcObject = mediaStream;
-      if (!isReceiving) initiateCall(mediaStream);
-      else answerCall(mediaStream);
+
+      // Initialize Native WebRTC component
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      });
+      peerConnectionRef.current = pc;
+
+      mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
+
+      pc.ontrack = (event) => {
+        if (userVideo.current) {
+          userVideo.current.srcObject = event.streams[0];
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('webrtc_ice_candidate', {
+            to: isReceiving ? callerId : selectedUser.id,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      socket.on('webrtc_ice_candidate', (data) => {
+        if (data.candidate && peerConnectionRef.current) {
+          peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => console.error(e));
+        }
+      });
+
+      if (!isReceiving) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('call_user', {
+            userToCall: selectedUser.id,
+            signalData: offer,
+            from: currentUser.id,
+            name: currentUser.name,
+            callType
+          });
+          
+          socket.on('call_accepted', async (signal) => {
+            try {
+              if (peerConnectionRef.current.signalingState !== "stable") {
+                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+              }
+            } catch(e) { console.error(e) }
+          });
+        } catch(e) { console.error(e); }
+      } else {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(callerSignal));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('answer_call', { signal: answer, to: callerId });
+        } catch(e) { console.error(e); }
+      }
     };
 
     navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true })
@@ -45,7 +103,6 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
         try {
           const fallback = getFallbackStream(callType === 'video');
           startConnection(fallback);
-          alert(`Could not access your physical ${callType === 'video' ? 'Camera/Microphone' : 'Microphone'}. The call connected, but the other person won't be able to hear/see you until you allow permissions!`);
         } catch (fallbackErr) {
           console.error("Fallback failed", fallbackErr);
           onClose();
@@ -58,68 +115,19 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
 
     return () => {
       socket.off('call_ended');
+      socket.off('call_accepted');
+      socket.off('webrtc_ice_candidate');
       endCall(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const initiateCall = (mediaStream) => {
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      stream: mediaStream,
-    });
-
-    peer.on('signal', (data) => {
-      socket.emit('call_user', {
-        userToCall: selectedUser.id,
-        signalData: data,
-        from: currentUser.id,
-        name: currentUser.name,
-        callType
-      });
-    });
-
-    peer.on('stream', (userStream) => {
-      if (userVideo.current) {
-        userVideo.current.srcObject = userStream;
-      }
-    });
-
-    socket.on('call_accepted', (signal) => {
-      peer.signal(signal);
-    });
-
-    connectionRef.current = peer;
-  };
-
-  const answerCall = (mediaStream) => {
-    const peer = new Peer({
-      initiator: false,
-      trickle: false,
-      stream: mediaStream,
-    });
-
-    peer.on('signal', (data) => {
-      socket.emit('answer_call', { signal: data, to: callerId });
-    });
-
-    peer.on('stream', (userStream) => {
-      if (userVideo.current) {
-        userVideo.current.srcObject = userStream;
-      }
-    });
-
-    peer.signal(callerSignal);
-    connectionRef.current = peer;
-  };
-
   const endCall = (emitEvent = true) => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
-    if (connectionRef.current) {
-      connectionRef.current.destroy();
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
     }
     if (emitEvent && selectedUser) {
       socket.emit('disconnect_call', { to: isReceiving ? callerId : selectedUser.id });
