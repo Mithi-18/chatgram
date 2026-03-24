@@ -313,39 +313,51 @@ function Chat({ currentUser, onLogout }) {
               </div>
               <div className="call-actions">
                 <button onClick={() => startCall('voice')} title="Voice Call">📞</button>
-                <button onClick={() => startCall('video')} title="Video Call">📹</button>
+                <button onClick={() => startCall('video')} title="Video Call" style={{display: 'none'}}>📹</button>
+                <button title="More options">⋮</button>
               </div>
             </div>
 
             <div className="messages-list">
-              {messages.filter(m => 
-                (m.sender_id === currentUser.id && m.receiver_id === selectedUser.id) ||
-                (m.sender_id === selectedUser.id && m.receiver_id === currentUser.id)
-              ).map((msg, index) => (
-                <div key={index} className={`message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}`}>
-                  {msg.type === 'text' && <p>{msg.content}</p>}
-                  {msg.type === 'image' && (
-                    <img src={`https://chatgram-production.up.railway.app${msg.file_url}`} alt="attachment" className="message-media" />
-                  )}
-                  {msg.type === 'video' && (
-                    <video controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" />
-                  )}
-                  {msg.type === 'audio' && (
-                    <div style={{display: 'flex', flexDirection: 'column'}}>
-                      <span style={{fontSize: '12px', marginBottom: '5px'}}>🎤 Voice Message</span>
-                      <audio controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" style={{height: '40px', maxWidth: '220px'}} />
-                    </div>
-                  )}
-                  {msg.type === 'file' && (
-                    <a href={`https://chatgram-production.up.railway.app${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
-                      Download: {msg.content}
-                    </a>
-                  )}
-                  <div style={{fontSize: '10px', opacity: 0.7, marginTop: '4px', textAlign: 'right'}}>
-                    {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              {messages.length === 0 ? (
+                <div className="empty-chat-state">
+                  <p>No messages here yet...</p>
+                  <p className="sub">Send a message or tap the greeting below.</p>
+                  <div className="greeting-sticker" onClick={() => { setInputText('🐊 Hi!'); sendMessage(); }}>
+                    <span style={{fontSize: '80px', display: 'block'}}>🐊</span>
+                    <span style={{color: 'var(--secondary)', fontSize: '24px', fontWeight: 'bold', textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>Hi!</span>
                   </div>
                 </div>
-              ))}
+              ) : (
+                messages.filter(m => 
+                  (m.sender_id === currentUser.id && m.receiver_id === selectedUser.id) ||
+                  (m.sender_id === selectedUser.id && m.receiver_id === currentUser.id)
+                ).map((msg, index) => (
+                  <div key={index} className={`message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}`}>
+                    {msg.type === 'text' && <p>{msg.content}</p>}
+                    {msg.type === 'image' && (
+                      <img src={`https://chatgram-production.up.railway.app${msg.file_url}`} alt="attachment" className="message-media" />
+                    )}
+                    {msg.type === 'video' && (
+                      <video controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" />
+                    )}
+                    {msg.type === 'audio' && (
+                      <div style={{display: 'flex', flexDirection: 'column'}}>
+                        <span style={{fontSize: '12px', marginBottom: '5px'}}>🎤 Voice Message</span>
+                        <audio controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" style={{height: '40px', maxWidth: '220px'}} />
+                      </div>
+                    )}
+                    {msg.type === 'file' && (
+                      <a href={`https://chatgram-production.up.railway.app${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
+                        Download: {msg.content}
+                      </a>
+                    )}
+                    <div style={{fontSize: '10px', opacity: 0.7, marginTop: '4px', textAlign: 'right'}}>
+                      {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </div>
+                  </div>
+                ))
+              )}
               {typingUsers.has(selectedUser.id) && (
                 <div className="typing-indicator-bubble">
                   <div className="dot"></div>
@@ -356,25 +368,26 @@ function Chat({ currentUser, onLogout }) {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={sendMessage} className="chat-input-area">
-              <input type="file" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileUpload} accept="image/*,video/*" />
-              <button type="button" className="file-btn" onClick={() => fileInputRef.current.click()} title="Attach File">
-                📎
-              </button>
-              <input 
-                type="text" 
-                placeholder={isRecording ? "Recording audio..." : "Type a message..."} 
-                value={inputText}
-                onChange={handleTyping}
-                disabled={isRecording}
-              />
+            <form className="chat-input-area" onSubmit={sendMessage}>
+              <div className="input-pill">
+                <button type="button" className="icon-btn emoji-btn" title="Emoji">😀</button>
+                <input 
+                  type="text" 
+                  placeholder={isRecording ? "Recording audio..." : "Message"} 
+                  value={inputText}
+                  onChange={handleTyping}
+                  disabled={isRecording}
+                />
+                <button type="button" className="icon-btn attachment-btn" onClick={() => fileInputRef.current.click()} title="Attach File">📎</button>
+              </div>
+              <input type="file" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileUpload} />
+              
               {inputText.trim() ? (
-                <button type="submit" className="send-btn">Send</button>
+                <button type="submit" className="round-action-btn" title="Send Message">➤</button>
               ) : (
                 <button 
                   type="button" 
-                  className={`send-btn ${isRecording ? 'recording' : ''}`} 
-                  style={{ backgroundColor: isRecording ? 'var(--danger)' : 'var(--surface-light)', padding: '14px 20px', fontSize: '18px' }}
+                  className={`round-action-btn ${isRecording ? 'recording' : ''}`} 
                   onClick={isRecording ? stopRecording : startRecording}
                   title={isRecording ? "Stop and Send" : "Record Voice Message"}
                 >
