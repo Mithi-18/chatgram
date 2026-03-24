@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from '../utils/socket';
 import VideoCall from './VideoCall';
+import EmojiPicker from 'emoji-picker-react';
 
 const API_URL = 'https://chatgram-production.up.railway.app/api';
 
@@ -22,6 +23,8 @@ function Chat({ currentUser, onLogout }) {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const playNotificationSound = () => {
     try {
@@ -115,6 +118,8 @@ function Chat({ currentUser, onLogout }) {
   const sendMessage = async (e) => {
     e?.preventDefault();
     if (!inputText.trim() || !selectedUser) return;
+    
+    setShowEmojiPicker(false);
 
     const messageData = {
       sender_id: currentUser.id,
@@ -369,14 +374,20 @@ function Chat({ currentUser, onLogout }) {
             </div>
 
             <form className="chat-input-area" onSubmit={sendMessage}>
+              {showEmojiPicker && (
+                <div style={{position: 'absolute', bottom: '80px', left: '20px', zIndex: 100}}>
+                  <EmojiPicker onEmojiClick={(e) => setInputText(prev => prev + e.emoji)} theme="dark" />
+                </div>
+              )}
               <div className="input-pill">
-                <button type="button" className="icon-btn emoji-btn" title="Emoji">😀</button>
+                <button type="button" className="icon-btn emoji-btn" title="Emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>😀</button>
                 <input 
                   type="text" 
                   placeholder={isRecording ? "Recording audio..." : "Message"} 
                   value={inputText}
                   onChange={handleTyping}
                   disabled={isRecording}
+                  onClick={() => setShowEmojiPicker(false)}
                 />
                 <button type="button" className="icon-btn attachment-btn" onClick={() => fileInputRef.current.click()} title="Attach File">📎</button>
               </div>
