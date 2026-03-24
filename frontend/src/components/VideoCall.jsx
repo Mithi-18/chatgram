@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSignal, callerId, callType, onClose }) {
+function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSignal, callerId, callerName, callType, onClose }) {
   const [stream, setStream] = useState(null);
   const myVideo = useRef(null);
   const userVideo = useRef(null);
@@ -129,16 +129,18 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
     }
-    if (emitEvent && selectedUser) {
-      socket.emit('disconnect_call', { to: isReceiving ? callerId : selectedUser.id });
+    if (emitEvent && (selectedUser || callerId)) {
+      socket.emit('disconnect_call', { to: isReceiving ? callerId : selectedUser?.id });
     }
     onClose();
   };
 
+  const otherPersonName = isReceiving ? callerName : (selectedUser?.name || 'Unknown');
+
   return (
     <div className="call-overlay">
       <h2 style={{ marginBottom: '20px', zIndex: 1, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-        {isReceiving ? `In ${callType} call with ${selectedUser ? selectedUser.name : 'Unknown'}` : `Calling ${selectedUser?.name}...`}
+        {isReceiving ? `In ${callType} call with ${otherPersonName}` : `Calling ${otherPersonName}...`}
       </h2>
       
       <div className={`videos-container ${callType === 'voice' ? 'voice-mode' : ''}`}>
@@ -155,11 +157,11 @@ function VideoCall({ currentUser, selectedUser, socket, isReceiving, callerSigna
           ) : (
              <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%'}}>
                <div style={{fontSize: '60px', marginBottom: '20px', animation: 'pulsate 1.5s infinite alternate'}}>📞</div>
-               <h3 style={{fontSize: '24px'}}>{selectedUser?.name || 'Connecting...'}</h3>
+               <h3 style={{fontSize: '24px'}}>{otherPersonName}</h3>
                <audio playsInline ref={userVideo} autoPlay />
              </div>
           )}
-          {callType === 'video' && <div className="video-label">{selectedUser?.name || 'Connecting...'}</div>}
+          {callType === 'video' && <div className="video-label">{otherPersonName}</div>}
         </div>
       </div>
 

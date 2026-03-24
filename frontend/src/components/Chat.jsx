@@ -253,7 +253,6 @@ function Chat({ currentUser, onLogout }) {
   };
 
   const handleAcceptCall = () => {
-    setReceivingCall(false);
     setCallActive(true);
     // Setting selectedUser to the caller so the VideoCall component knows who we are talking to
     const callingUser = users.find(u => u.id.toString() === caller);
@@ -262,8 +261,8 @@ function Chat({ currentUser, onLogout }) {
 
   const handleDeclineCall = () => {
     setReceivingCall(false);
+    socket.emit('disconnect_call', { to: caller });
   };
-
   const getInitials = (name) => name ? name.charAt(0).toUpperCase() : '?';
 
   return (
@@ -437,10 +436,10 @@ function Chat({ currentUser, onLogout }) {
             isReceiving={receivingCall}
             callerSignal={callerSignal}
             callerId={caller}
+            callerName={callerName}
             callType={callType}
             onClose={() => {
               setCallActive(false);
-              setReceivingCall(false);
               setCallerSignal(null);
               setCallType(null);
             }} 
