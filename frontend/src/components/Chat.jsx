@@ -26,6 +26,37 @@ function Chat({ currentUser, onLogout }) {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  const usersRef = useRef([]);
+  const ringtoneRef = useRef(null);
+
+  useEffect(() => { usersRef.current = users; }, [users]);
+
+  useEffect(() => {
+    ringtoneRef.current = new Audio('https://actions.google.com/sounds/v1/alarms/phone_ringing.ogg');
+    ringtoneRef.current.loop = true;
+    
+    if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const showDesktopNotification = (title, body) => {
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+      new Notification(title, { body });
+    }
+  };
+
+  useEffect(() => {
+    if (receivingCall && !callActive) {
+      ringtoneRef.current?.play().catch(e => console.log('Ringtone autoplay blocked', e));
+    } else {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current.currentTime = 0;
+      }
+    }
+  }, [receivingCall, callActive]);
+
   const playNotificationSound = () => {
     try {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
@@ -60,7 +91,13 @@ function Chat({ currentUser, onLogout }) {
     // Listen for incoming messages
     socket.on('receive_message', (message) => {
       setMessages((prev) => [...prev, message]);
-      playNotificationSound();
+      if (message.sender_id !== currentUser.id) {
+        playNotificationSound();
+        const sender = usersRef.current.find(u => u.id === message.sender_id);
+        const callerName = sender ? sender.name : 'Someone';
+        const bodyText = message.type === 'text' ? message.content : `Sent a ${message.type}`;
+        showDesktopNotification(`New message from ${callerName}`, bodyText);
+      }
       setTypingUsers(prev => {
         const next = new Set(prev);
         next.delete(message.sender_id);
@@ -83,10 +120,11 @@ function Chat({ currentUser, onLogout }) {
     // Listen for incoming calls
     socket.on('incoming_call', (data) => {
       setReceivingCall(true);
-      setCaller(data.from);
+      setCaller(data.from.toString());
       setCallerName(data.name);
       setCallerSignal(data.signal);
-      setCallType(data.callType || 'video');
+      if (data.callType) setCallType(data.callType);
+      showDesktopNotification('Incoming Call', `${data.name} is calling you via ${data.callType || 'voice'}...`);
     });
 
     return () => {
