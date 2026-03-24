@@ -19,6 +19,10 @@ function Chat({ currentUser, onLogout }) {
   const [typingUsers, setTypingUsers] = useState(new Set());
   const typingTimeoutRef = useRef(null);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   const playNotificationSound = () => {
     try {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
@@ -138,35 +142,64 @@ function Chat({ currentUser, onLogout }) {
     }, 1500);
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const uploadAndSendFile = async (file, overrideType) => {
     if (!file || !selectedUser) return;
-
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const res = await fetch(`${API_URL}/upload`, {
-        method: 'POST',
-        body: formData
-      });
+      const res = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
 
-      let type = 'file';
-      if (file.type.startsWith('image/')) type = 'image';
-      else if (file.type.startsWith('video/')) type = 'video';
+      let type = overrideType || 'file';
+      if (!overrideType) {
+        if (file.type.startsWith('image/')) type = 'image';
+        else if (file.type.startsWith('video/')) type = 'video';
+        else if (file.type.startsWith('audio/')) type = 'audio';
+      }
 
       const messageData = {
-        sender_id: currentUser.id,
-        receiver_id: selectedUser.id,
-        type: type,
-        content: file.name,
-        file_url: data.fileUrl
+        sender_id: currentUser.id, receiver_id: selectedUser.id,
+        type: type, content: file.name || 'Voice Message', file_url: data.fileUrl
       };
 
       socket.emit('send_message', messageData);
+      socket.emit('stop_typing', { sender_id: currentUser.id, receiver_id: selectedUser.id });
+      playNotificationSound();
+    } catch (err) { console.error('Error uploading file', err); }
+  };
+
+  const handleFileUpload = (e) => uploadAndSendFile(e.target.files[0]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+        uploadAndSendFile(file, 'audio');
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
     } catch (err) {
-      console.error('Error uploading file', err);
+      alert("Microphone access is required for voice messages.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
   };
 
@@ -297,6 +330,12 @@ function Chat({ currentUser, onLogout }) {
                   {msg.type === 'video' && (
                     <video controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" />
                   )}
+                  {msg.type === 'audio' && (
+                    <div style={{display: 'flex', flexDirection: 'column'}}>
+                      <span style={{fontSize: '12px', marginBottom: '5px'}}>🎤 Voice Message</span>
+                      <audio controls src={`https://chatgram-production.up.railway.app${msg.file_url}`} className="message-media" style={{height: '40px', maxWidth: '220px'}} />
+                    </div>
+                  )}
                   {msg.type === 'file' && (
                     <a href={`https://chatgram-production.up.railway.app${msg.file_url}`} target="_blank" rel="noreferrer" style={{color: 'white', textDecoration: 'underline'}}>
                       Download: {msg.content}
@@ -324,11 +363,24 @@ function Chat({ currentUser, onLogout }) {
               </button>
               <input 
                 type="text" 
-                placeholder="Type a message..." 
+                placeholder={isRecording ? "Recording audio..." : "Type a message..."} 
                 value={inputText}
                 onChange={handleTyping}
+                disabled={isRecording}
               />
-              <button type="submit" className="send-btn">Send</button>
+              {inputText.trim() ? (
+                <button type="submit" className="send-btn">Send</button>
+              ) : (
+                <button 
+                  type="button" 
+                  className={`send-btn ${isRecording ? 'recording' : ''}`} 
+                  style={{ backgroundColor: isRecording ? 'var(--danger)' : 'var(--surface-light)', padding: '14px 20px', fontSize: '18px' }}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  title={isRecording ? "Stop and Send" : "Record Voice Message"}
+                >
+                  {isRecording ? "⏹️" : "🎤"}
+                </button>
+              )}
             </form>
           </>
         ) : (
